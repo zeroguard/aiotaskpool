@@ -1,0 +1,7 @@
+version: '3.4'
+
+services:
+  aiotaskpool:
+    build:
+      dockerfile: Dockerfile
+      context: .
