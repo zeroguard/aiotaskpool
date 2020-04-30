@@ -2,7 +2,7 @@
 
 __title__ = 'aiotaskpool'
 __description__ = 'aiotaskpool'
-__version__ = '0.0.1-dev.1'
+__version__ = '0.1.1'
 
 __source_url__ = 'https://github.com/zeroguard/aiotaskpool'
 __home_url__ = 'https://zeroguard.com'

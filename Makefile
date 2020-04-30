@@ -13,7 +13,7 @@ PIPENV_CMD_RUN := pipenv run
 
 DOCKER_PROJECT := zeroguard
 DOCKER_IMAGE := aiotaskpool
-DOCKER_VERSION := 0.0.1
+DOCKER_VERSION := 0.1.1
 
 DOCKER_TAG := $(DOCKER_PROJECT)/$(DOCKER_IMAGE):$(DOCKER_VERSION)
 DOCKER_RUN_OPTS := -it --rm -v `pwd`:/app
