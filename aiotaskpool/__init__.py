@@ -21,8 +21,58 @@ from .__version__ import (
     __author__, __author_email__, __copyright__, __license__
 )
 
+LOOP_TICK_SECS = 0.2
+
 NoneType = type(None)
 
+#######################################################################
+# TASK POOL
+#######################################################################
+
+# pylint: disable=R0903
+class TaskPool:
+    """."""
+
+    def __init__(self, size, loop=None):
+        """."""
+        self._tasks = set()
+        self.loop = loop if loop else asyncio.get_running_loop()
+
+        self._size = size
+        self._task_sem = asyncio.Semaphore(size)
+        self._tasks = set()
+        self._results = []
+
+    async def _create_task(self, coroutine, *args, **kwargs):
+        """."""
+        await self._task_sem.acquire()
+        task = self.loop.create_task(coroutine(*args, **kwargs))
+
+        task.add_done_callback(
+            partial(self._handle_task_done, task))
+
+        self._tasks.add(task)
+        return task
+
+    def _handle_task_done(self, task, future):
+        """."""
+        self._task_sem.release()
+        self._tasks.remove(task)
+
+    def map(self, coroutine, iterable, return_exceptions=False):
+        """."""
+        return TaskPoolMap(
+            pool=self,
+            size=self._size,
+            coroutine=coroutine,
+            iterable=iterable,
+            return_exceptions=return_exceptions
+        )
+
+
+#######################################################################
+# TASK POOL MAP
+#######################################################################
 
 class TaskPoolMapResult:
     """."""
@@ -66,76 +116,6 @@ class TaskPoolMapResult:
         """Return exception."""
         return self._exc
 
-# pylint: disable=R0903
-class TaskPool:
-    """."""
-
-    def __init__(self, size, loop=None):
-        """."""
-        self._tasks = set()
-        self.loop = loop if loop else asyncio.get_running_loop()
-
-        self._size = size
-        self._task_sem = asyncio.Semaphore(size)
-        self._tasks = set()
-        self._results = []
-
-    async def _create_task(self, awaitable):
-        """."""
-        await self._task_sem.acquire()
-        task = self.loop.create_task(awaitable)
-
-        task.add_done_callback(
-            partial(self._handle_task_done, task))
-
-        self._tasks.add(task)
-        return task
-
-    def _handle_task_done(self, task, future):
-        """."""
-        self._task_sem.release()
-        self._tasks.remove(task)
-
-    def map(self, coroutine, iterable, return_exceptions=False):
-        """."""
-        return TaskPoolMap(
-            pool=self,
-            size=self._size,
-            coroutine=coroutine,
-            iterable=iterable,
-            return_exceptions=return_exceptions
-        )
-
-
-class TaskPoolMapStats:
-    """."""
-
-    def __init__(self):
-        """."""
-        self._counters = []
-        self._is_enabled = False
-
-    @property
-    def is_enabled(self):
-        """."""
-        return self._is_enabled
-
-    def enable(self):
-        """."""
-        self._is_enabled = True
-
-    def disable(self):
-        """."""
-        self._is_enabled = False
-
-    def add_task_timing(self, timestamp, secs):
-        """."""
-        self._counters += [(timestamp, secs)]
-
-    @property
-    def tasks_per_sec(self):
-        """."""
-
 
 # pylint: disable=R0902, R0913
 class TaskPoolMap:
@@ -153,13 +133,7 @@ class TaskPoolMap:
         self._lock = asyncio.Lock()
         self._tasks = set()
         self._has_tasks = asyncio.Event()
-        self._stats = TaskPoolMapStats()
         self._counters = []
-
-    @property
-    def stats(self):
-        """."""
-        return self._stats
 
     @property
     def loop(self):
@@ -196,7 +170,7 @@ class TaskPoolMap:
             completed, pending = await asyncio.wait(
                 self._tasks,
                 loop=self.loop,
-                timeout=0.5,
+                timeout=LOOP_TICK_SECS,
                 return_when=asyncio.ALL_COMPLETED
             )
 
@@ -238,17 +212,26 @@ class TaskPoolMap:
 
     async def stop(self):
         """."""
-        if not self._lock.locked():
+        # do we need to unlock?
+        if self._lock.locked():
+            self._lock.release()
+
+        # skip cancelling tasks if loop is closed
+        if self.loop.is_closed():
             return
 
-        self._lock.release()
-
+        # stop processing iterable
         if not self._process_iterable_task.done():
             self._process_iterable_task.cancel()
 
+        # cancel any remaining tasks in the queue
+        for t in self._tasks:
+            if t.cancelled():
+                t.cancel()
+
     async def _process_item(self, i):
         """."""
-        task = asyncio.Task.current_task()
+        task = asyncio.current_task()
 
         tr_result = None
         tr_exc = None
@@ -260,11 +243,6 @@ class TaskPoolMap:
             tr_exc = exc
 
         tr_end_ts = time.time()
-
-        # should we increment stats counters?
-        if self.stats.is_enabled:
-            tr_delta = (tr_end_ts - tr_start_ts)
-            self.stats.add_task_timing(tr_end_ts, tr_delta)
 
         # pylint: disable=W0212
         return TaskPoolMapResult(
@@ -283,11 +261,11 @@ class TaskPoolMap:
         idx = -1
         for i in self._iterable:
             idx += 1
-            awaitable = self._process_item(i)
 
             # create new task
             # pylint: disable=W0212
-            task = await self._pool._create_task(awaitable)
+            task = await self._pool._create_task(
+                self._process_item, i)
             task._index = idx
 
             # add task to working set
