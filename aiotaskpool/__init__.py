@@ -59,8 +59,14 @@ class TaskPool:
         self._task_sem.release()
         self._tasks.remove(task)
 
-    def map(self, coroutine, iterable, return_exceptions=False):
-        """."""
+    async def map(self, coroutine, iterable, return_exceptions=False):
+        """Ordered results."""
+        async with self.imap(coroutine, iterable, return_exceptions) as results:
+            items = [x async for x in results]
+            return sorted(items, key=lambda x: x.index)
+
+    def imap(self, coroutine, iterable, return_exceptions=False):
+        """Unordered results"""
         return TaskPoolMap(
             pool=self,
             size=self._size,

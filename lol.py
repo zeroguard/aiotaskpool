@@ -15,11 +15,11 @@ async def random_wait(idx):
 
 async def test_all():
     """."""
-    items = range(100_000)
+    items = list(range(100_000))
     tp = TaskPool(1024)
     async with tp.map(random_wait, items) as results:
         async for result in results:
-            pass#print(result.args, result.result())
+            print(result.args, result.result())
 
 
 async def random_wait_loop():
