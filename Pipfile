@@ -6,9 +6,8 @@ name = "pypi"
 [dev-packages]
 pytest = "*"
 pytest-cov = "*"
-python-coveralls = "*"
 pytest-asyncio = "*"
+python-coveralls = "*"
 twine = "*"
 
 [packages]
-aiohttp = "*"

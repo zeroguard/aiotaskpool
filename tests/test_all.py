@@ -1,23 +1,33 @@
 """Test all placeholder."""
+import asyncio
 import pytest
 import random
-import asyncio
 
 from aiotaskpool import TaskPool
 
 
-async def wait_and_echo(item):
-    rand = random.random()
-    await asyncio.sleep(rand)
-    return rand
+async def random_wait(idx):
+    """."""
+    i = random.random()
+    await asyncio.sleep(i)
+    return i
 
 
 @pytest.mark.asyncio
-async def test_placeholder():
+async def test_imap():
     """."""
-    items = range(10)
+    items = range(1000)
     task_pool = TaskPool(32)
-    async with task_pool.map(wait_and_echo, items) as results:
-        results.stats.enable()
+    async with task_pool.imap(random_wait, items) as results:
         async for result in results:
-            assert result
+            print(result.args, result.result())
+
+
+@pytest.mark.asyncio
+async def test_map():
+    """."""
+    items = range(1000)
+    task_pool = TaskPool(32)
+    results = await task_pool.map(random_wait, items)
+    for result in results:
+        print(result.args, result.result())
