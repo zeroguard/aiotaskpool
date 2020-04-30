@@ -7,6 +7,7 @@ name = "pypi"
 pytest = "*"
 pytest-cov = "*"
 pytest-asyncio = "*"
+coverage = "==4.5.4"
 python-coveralls = "*"
 twine = "*"
 
